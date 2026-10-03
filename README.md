@@ -12,7 +12,7 @@ for offline installation from an Android phone with USB OTG.
 (affiliate link). Connect its native USB port with a data cable and a phone USB OTG
 adapter if needed. See the [hardware requirements](docs/USB_RECEIVER.md#hardware).
 
-[Download the Fieldwatch-NG APK](https://github.com/jaschadub/Fieldwatch/releases/download/v1.1.17-ng-usb.5/Fieldwatch-NG-1.1.17-ng-usb.5.apk) · [Firmware, checksums, and release notes](https://github.com/jaschadub/Fieldwatch/releases/tag/v1.1.17-ng-usb.5)
+[Download the Fieldwatch-NG APK](https://github.com/jaschadub/Fieldwatch-NG/releases/download/v1.1.17-ng-usb.5/Fieldwatch-NG-1.1.17-ng-usb.5.apk) · [Firmware, checksums, and release notes](https://github.com/jaschadub/Fieldwatch-NG/releases/tag/v1.1.17-ng-usb.5)
 
 **New in `ng-usb.5`: the Capture workspace.** Update the APK to get these controls;
 the receiver firmware remains `0.1.0`, so a working receiver needs no reflash.
@@ -79,7 +79,7 @@ also decoded the Android-exported PCAPNG frames and their radio metadata. See th
 Multi-receiver hotspot sharing and RSSI source-area estimation are documented
 ideas, not implemented features.
 
-Report fork-specific issues in [this fork](https://github.com/jaschadub/Fieldwatch/issues).
+Report fork-specific issues in [this fork](https://github.com/jaschadub/Fieldwatch-NG/issues).
 
 The prebuilt APK and PDF linked below are upstream releases; they do **not** contain
 the USB extension. For Fieldwatch-NG, use the prerelease download above, build this
