@@ -692,6 +692,14 @@ private fun CreditFooter() {
             style = MaterialTheme.typography.labelSmall,
             color = muted,
         )
+        Text(
+            "Fieldwatch-NG contributions: Copyright 2026 Jascha Wanger",
+            style = MaterialTheme.typography.labelSmall,
+            color = muted,
+        )
+        TextButton(onClick = { openUrl(context, "https://dx.pe") }) {
+            Text("Jascha Wanger / DX.PE")
+        }
         Row(
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalAlignment = Alignment.CenterVertically,

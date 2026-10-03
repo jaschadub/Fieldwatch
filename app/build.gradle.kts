@@ -28,8 +28,8 @@ android {
         applicationId = "app.fieldwatch.ng"
         minSdk = 29
         targetSdk = 35
-        versionCode = 29
-        versionName = "1.1.17-ng-usb.2"
+        versionCode = 31
+        versionName = "1.1.17-ng-usb.4"
         vectorDrawables.useSupportLibrary = true
     }
 
@@ -79,6 +79,8 @@ android {
         }
     }
 
+    testOptions { unitTests.isIncludeAndroidResources = true }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -114,6 +116,7 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
     debugImplementation("androidx.compose.ui:ui-tooling")
     testImplementation("junit:junit:4.13.2")
+    testImplementation("org.robolectric:robolectric:4.14.1")
     // Real org.json on the JVM test classpath; the android.jar bundled JSONObject is a stub.
     testImplementation("org.json:json:20240303")
 }

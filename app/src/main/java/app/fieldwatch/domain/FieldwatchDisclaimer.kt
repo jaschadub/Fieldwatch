@@ -31,6 +31,9 @@ object FieldwatchDisclaimer {
     /** Body of LICENSE in the repository, without the title line. */
     const val LICENSE_BODY =
         "Copyright (c) 2026 Off Grid Pete LLC\n" +
+            "Copyright 2026 Jascha Wanger (Fieldwatch-NG contributions)\n" +
+            "\n" +
+            "Fieldwatch-NG: Jascha Wanger / DX.PE — https://dx.pe\n" +
             "\n" +
             "Permission is hereby granted, free of charge, to any person obtaining a copy " +
             "of this software and associated documentation files (the \"Software\"), to deal " +

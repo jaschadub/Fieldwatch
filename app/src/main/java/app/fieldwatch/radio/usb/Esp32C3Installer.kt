@@ -96,7 +96,8 @@ class Esp32C3Installer(
             val expected = digest("MD5", part.bytes)
             check(actual.equals(expected, ignoreCase = true)) { "Flash verification failed for ${part.name}. Reinstall before capture." }
         }
-        command(0x04, words(1)) // Stay in ROM until every image has been verified.
+        // ROM FLASH_END exits download mode; it is not a "stay in ROM" command.
+        // Like esptool's ROM path, finish at MD5 verification and reset separately.
         progress("All firmware verified", 96)
     }
 

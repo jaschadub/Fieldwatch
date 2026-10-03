@@ -36,6 +36,32 @@ needed for this step. Install the APK on an Android phone with USB host/OTG supp
    firmware is verified but needs reconnect/reset, reconnect USB or tap RESET.
    Then explicitly start a capture.
 
+### Stuck waiting for USB access
+
+In `1.1.17-ng-usb.2`, accepting the Android USB dialog can leave the installer at
+**0% / Allow USB access in the Android dialog**. The permission callback was
+immutable but depended on device information Android adds to that callback; the
+app could discard the reply before starting the installer.
+
+The `1.1.17-ng-usb.3` fix identifies the pending request using an app-supplied token
+and checks the connected device and permission directly with Android. Missing,
+denied, cancelled and expired requests cannot start flashing. A request expires
+after 90 seconds and can also be cancelled before installation starts. Permission
+waiting is shown separately from firmware-writing progress.
+
+On the older APK, leave the C3 connected, force-stop Fieldwatch-NG in Android's app
+settings, reopen it and retry. If access was granted, the retry bypasses the faulty
+permission callback. If the Android access dialog never appears, reconnect the
+board and check that the phone is using USB host/OTG mode and a data-capable cable.
+Do not use this workaround once erasing or writing has started.
+
+### Bootloader recovery
+
+Version `1.1.17-ng-usb.3` also removes an unnecessary final ROM command that the C3
+rejected after all firmware regions passed MD5 verification. Verification now
+finishes before the separate USB reset, matching the
+[esptool ROM-loader flow](https://github.com/espressif/esptool/blob/master/esptool/cmds.py).
+
 If automatic bootloader entry fails, hold **BOOT**, tap and release **RESET**, then
 release **BOOT**. Select **Manual boot mode** in the app and retry installation.
 If the board has no RESET button, hold BOOT while reconnecting USB, then release it.
@@ -51,8 +77,10 @@ receiver application, and NVS/PHY settings on the C3; it does not erase phone da
 On interruption, reconnect and reinstall using manual boot if necessary. Capturing
 cannot run during installation, and nothing flashes automatically on USB attach.
 
-This installer is implemented and host-tested; real phone/OTG/C3 testing remains
-necessary before treating it as a validated hardware installer.
+The installer has been tested with a physical C3 passed through to an Android 15
+emulator. A user also confirmed installation from an Android phone and supplied
+Wi-Fi captures with and without GPS. Other phone USB controllers, adapters and
+power arrangements still need testing; see the validation details below.
 
 ### Build from source
 
@@ -98,6 +126,11 @@ does not clear NVS unless you erase it separately.
 1. Open Fieldwatch-NG, grant its normal scanning permissions, and start scanning.
 2. Connect the C3 to the phone. Open **Settings → USB research receiver**.
 3. Choose the receiver. Add a short session label such as `store-a-cart-area`.
+   In `ng-usb.4`, the keyboard **Done/checkmark** finishes editing and dismisses the
+   keyboard. The label survives tab navigation, rotation and Android saved-state
+   restoration; confirm it beside **Start USB capture**. Tap the field to edit it
+   again before the next capture. The label is written in the first `session`
+   record of the JSONL file; it does not rename the file.
 4. Choose **Wi-Fi management** (hop 1–11 or hold a channel) or **BLE advertisements**.
 5. Optionally enable **Include available phone GPS in raw export**. A fix must be
    at most 30 seconds old and have reported accuracy of 75 m or better. Missing fixes
@@ -206,10 +239,53 @@ Host tests cover chunked USB reads, oversize/binary framing recovery, malformed 
 BLE service/manufacturer preservation, beacon parsing, separation of non-AP frames,
 archive integrity, quotas and firmware command validation. Installer tests exercise
 fragmented ROM replies, real bundled images, chip/security/capacity rejection,
-integrity failures, disconnect timeouts, cancellation and manual boot entry. CI builds the APK and C3
-firmware. These checks do not establish actual OTG interoperability.
+integrity failures, disconnect timeouts, cancellation and manual boot entry. Android
+permission regression tests cover immutable callback delivery, grants/denials, stale
+requests, detach, cancellation and timeouts on API 29 and 35. CI builds the APK and C3
+firmware. These automated checks do not establish actual OTG interoperability.
 
-Before field use, check on a phone and spare C3:
+On 2026-10-03, the `1.1.17-ng-usb.3` APK was tested with a physical ESP32-C3 Super
+Mini through native USB passthrough into an Android 15 AOSP emulator (API 35,
+emulator 36.1.9). The test image enabled `android.hardware.usb.host` through its
+`/data/system/extra_feature.xml` hook so Android exposed its normal USB host APIs.
+The original permission callback failure was reproduced in Android framework
+regression tests. Hardware testing additionally exposed an unnecessary final ROM
+command; both fixes are included in `ng-usb.3`.
+
+The final hardware test completed automatic bootloader entry, all four region MD5
+checks, native USB reset and a matching receiver HELLO. A short BLE session saved
+871 packet records with zero reported sequence gaps, receiver drops or invalid
+records, followed by a clean end record. All JSONL records parsed successfully.
+This validates this C3/host/emulator combination, not every phone or OTG adapter;
+zero reported loss does not mean every over-the-air advertisement was received.
+The final app build passed 439 tests, Android lint and the firmware-bundle check.
+
+The user subsequently confirmed firmware installation from a phone using
+`ng-usb.3` and supplied two Wi-Fi channel-hopping exports from the C3. Both files
+had valid JSONL and clean session-end records:
+
+| Phone capture | Saved packets | Observer GPS | Reported invalid / sequence gaps / receiver drops |
+| --- | ---: | --- | --- |
+| About 12 seconds | 278 | Present on all packets; seven fix timestamps, fixes less than four seconds old | 0 / 0 / 0 |
+| About 30 seconds | 789 | Disabled; no observer GPS fields | 7 / 11 / 0 |
+
+The GPS-enabled session retained its label. The other session's label was empty
+despite the user entering one, which prompted the `ng-usb.4` label fix. Invalid
+counts describe rejected incoming records, not malformed lines in the exported
+file. These short captures demonstrate phone/C3 operation and the GPS opt-in
+behavior; they do not establish long-run stability or lossless reception. The
+phone model was not recorded, and raw captures and precise locations are not
+included in the repository.
+
+The `ng-usb.4` label controls were checked in the Android 15 emulator: the keyboard
+Done/checkmark dismisses the keyboard and clears focus, the capture summary shows
+the entered label, and the label survives tab navigation, rotation and process
+recreation using Android's saved state. Confirmation of this UI update on the
+user's phone remains pending. Receiver firmware is unchanged at `0.1.0`.
+
+Before field use, repeat the relevant checks on your phone and spare C3. Interrupted
+installation recovery, prolonged capture and broader phone compatibility remain
+open hardware checks:
 
 - Native USB enumerates; grant and deny permission both leave a clear status.
 - Install from the phone onto a spare C3, including automatic and manual boot entry;

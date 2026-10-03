@@ -7,6 +7,8 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.hardware.usb.UsbDevice
 import android.hardware.usb.UsbManager
+import android.os.Handler
+import android.os.Looper
 import android.os.SystemClock
 import android.os.PowerManager
 import android.location.LocationManager
@@ -26,6 +28,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 import java.io.File
+import java.util.UUID
 import java.util.concurrent.atomic.AtomicBoolean
 
 data class UsbCaptureState(
@@ -33,6 +36,7 @@ data class UsbCaptureState(
     val invalid: Long = 0, val gaps: Long = 0, val deviceDrops: Long = 0, val bytes: Long = 0,
     val file: String? = null,
     val installing: Boolean = false, val installPercent: Int = 0,
+    val awaitingUsbPermission: Boolean = false,
 )
 data class UsbReceiver(val id: Int, val label: String)
 
@@ -45,27 +49,38 @@ class UsbCaptureController(private val context: Context) {
     val archive = CaptureArchive(File(context.filesDir, "usb-captures"))
     private var job: Job? = null
     private var pending: Request? = null
+    private var permissionIntent: PendingIntent? = null
+    private val permissionHandler = Handler(Looper.getMainLooper())
+    private var permissionTimeout: Runnable? = null
     private var installRequest: Request? = null
     private var deviceId: Int? = null
     private val permissionAction = "${context.packageName}.USB_CAPTURE_PERMISSION"
     private data class Request(val device: UsbDevice, val mode: CaptureProtocol.Mode, val channel: Int,
         val label: String, val gps: Boolean, val observe: (Observation) -> Unit,
-        val install: Boolean = false, val manualBoot: Boolean = false)
+        val install: Boolean = false, val manualBoot: Boolean = false,
+        val permissionToken: String = UUID.randomUUID().toString())
 
     init {
         val filter = IntentFilter(permissionAction).apply { addAction(UsbManager.ACTION_USB_DEVICE_DETACHED) }
         ContextCompat.registerReceiver(context, object : BroadcastReceiver() {
             override fun onReceive(ctx: Context, intent: Intent) {
-                @Suppress("DEPRECATION")
-                val device = intent.getParcelableExtra<UsbDevice>(UsbManager.EXTRA_DEVICE) ?: return
                 if (intent.action == UsbManager.ACTION_USB_DEVICE_DETACHED) {
+                    @Suppress("DEPRECATION")
+                    val device = intent.getParcelableExtra<UsbDevice>(UsbManager.EXTRA_DEVICE) ?: return
                     if (device.deviceId == deviceId) stop("USB disconnected")
                 } else if (intent.action == permissionAction) {
                     val request = pending ?: return
-                    if (device.deviceId != request.device.deviceId) return
-                    pending = null
-                    if (manager.hasPermission(device)) launchRequest(request)
-                    else { deviceId = null; mutable.value = mutable.value.copy(active = false, installing = false, status = "USB permission denied") }
+                    // Immutable PendingIntents discard the system's EXTRA_DEVICE/GRANTED fill-in.
+                    // Match our own token, then ask UsbManager about the current device/permission.
+                    if (intent.getStringExtra(PERMISSION_TOKEN) != request.permissionToken) return
+                    clearPendingPermission()
+                    val device = manager.deviceList[request.device.deviceName]
+                    if (device == null || device.deviceId != request.device.deviceId || !CdcSerial.supported(device)) {
+                        stop("USB disconnected. Reconnect and retry.")
+                    } else if (manager.hasPermission(device)) {
+                        mutable.value = mutable.value.copy(awaitingUsbPermission = false)
+                        launchRequest(request.copy(device = device))
+                    } else stop("USB permission denied")
                 }
             }
         }, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
@@ -102,18 +117,38 @@ class UsbCaptureController(private val context: Context) {
         if (manager.hasPermission(device)) launchRequest(request)
         else {
             pending = request
-            mutable.value = mutable.value.copy(status = "Allow USB access in the Android dialog")
+            mutable.value = mutable.value.copy(awaitingUsbPermission = true, status = "Allow USB access in the Android dialog")
             try {
-                manager.requestPermission(device, PendingIntent.getBroadcast(context, device.deviceId,
-                    Intent(permissionAction).setPackage(context.packageName),
-                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE))
+                val callback = PendingIntent.getBroadcast(context, device.deviceId,
+                    Intent(permissionAction).setPackage(context.packageName)
+                        .putExtra(PERMISSION_TOKEN, request.permissionToken),
+                    PendingIntent.FLAG_CANCEL_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+                permissionIntent = callback
+                permissionTimeout = Runnable {
+                    if (pending?.permissionToken == request.permissionToken)
+                        stop("USB permission timed out. Reconnect the C3 and allow USB access, then retry.")
+                }.also { permissionHandler.postDelayed(it, 90_000) }
+                manager.requestPermission(device, callback)
             } catch (_: Exception) { stop("Could not request USB permission") }
         }
+    }
+
+    private fun clearPendingPermission() {
+        pending = null
+        permissionTimeout?.let(permissionHandler::removeCallbacks)
+        permissionTimeout = null
+        permissionIntent?.cancel()
+        permissionIntent = null
+    }
+
+    fun cancelUsbPermissionRequest() {
+        if (pending != null) stop("USB permission request cancelled. Retry when ready.")
     }
 
     private fun launchRequest(request: Request) {
         if (!request.install) { launchCapture(request); return }
         installRequest = request
+        mutable.value = mutable.value.copy(status = "Starting firmware installer…")
         try {
             ContextCompat.startForegroundService(context, Intent(context, UsbFirmwareService::class.java)
                 .putExtra("device", request.device.deviceId))
@@ -125,14 +160,14 @@ class UsbCaptureController(private val context: Context) {
     }
 
     fun stop(reason: String = "USB capture stopped") {
-        pending = null
+        clearPendingPermission()
         installRequest = null
         deviceId = null
         val running = job
         if (running != null && !running.isCompleted) {
             mutable.value = mutable.value.copy(status = reason)
             running.cancel(CancellationException(reason))
-        } else mutable.value = mutable.value.copy(active = false, installing = false, status = reason)
+        } else mutable.value = mutable.value.copy(active = false, installing = false, awaitingUsbPermission = false, status = reason)
     }
 
     internal fun runInstallation(id: Int): Job? {
@@ -147,11 +182,13 @@ class UsbCaptureController(private val context: Context) {
             var verified = false
             var status = "Firmware installation stopped"
             try {
+                mutable.value = mutable.value.copy(status = "Checking bundled firmware…")
                 val firmware = ReceiverFirmware.load(context.assets::open)
                 wake = (context.getSystemService(Context.POWER_SERVICE) as PowerManager)
                     .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Fieldwatch:UsbInstall").apply { acquire(610_000) }
                 val started = SystemClock.elapsedRealtime()
                 val task = currentCoroutineContext()
+                mutable.value = mutable.value.copy(status = "Opening USB receiver…")
                 port = CdcSerial(manager, request.device)
                 val serial = port
                 val installer = Esp32C3Installer(serial, checkActive = {
@@ -328,5 +365,8 @@ class UsbCaptureController(private val context: Context) {
             .put("accuracy_m", fix.accuracy).put("fix_at_ms", fix.time)
     }
 
-    companion object { const val MAX_SESSION_MS = 30L * 60 * 1000 }
+    companion object {
+        const val MAX_SESSION_MS = 30L * 60 * 1000
+        private const val PERMISSION_TOKEN = "usb_permission_request"
+    }
 }

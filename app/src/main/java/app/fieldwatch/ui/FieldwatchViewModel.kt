@@ -8,6 +8,7 @@ import android.content.Intent
 import android.net.Uri
 import androidx.core.content.FileProvider
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import app.fieldwatch.BuildConfig
 import app.fieldwatch.FieldwatchApp
@@ -144,20 +145,26 @@ data class FieldwatchUi(
     val catalogVersion: Int = 0,
 )
 
-class FieldwatchViewModel(application: Application) : AndroidViewModel(application) {
+class FieldwatchViewModel(application: Application, private val savedState: SavedStateHandle) : AndroidViewModel(application) {
     private val app = application as FieldwatchApp
     val usbCaptureState = app.usbCapture.state
+    val usbSessionLabel = savedState.getStateFlow("usbSessionLabel", "")
+    fun setUsbSessionLabel(value: String) {
+        if (!usbCaptureState.value.active)
+            savedState["usbSessionLabel"] = value.filterNot(Char::isISOControl).take(64)
+    }
     fun usbReceivers() = app.usbCapture.receivers()
     fun usbCaptureFiles() = app.usbCapture.archive.files()
 
-    fun startUsbCapture(device: Int, mode: CaptureProtocol.Mode, channel: Int, label: String, gps: Boolean) {
+    fun startUsbCapture(device: Int, mode: CaptureProtocol.Mode, channel: Int, gps: Boolean) {
         if (!app.devices.stats.value.scanning) return
         app.startService(Intent(app, ScanService::class.java)
             .setAction(ScanService.ACTION_USB_START)
             .putExtra("device", device).putExtra("mode", mode.name).putExtra("channel", channel)
-            .putExtra("label", label).putExtra("gps", gps))
+            .putExtra("label", usbSessionLabel.value).putExtra("gps", gps))
     }
     fun stopUsbCapture() = app.usbCapture.stopCapture()
+    fun cancelUsbPermissionRequest() = app.usbCapture.cancelUsbPermissionRequest()
     fun installUsbFirmware(id: Int, manualBoot: Boolean) = app.usbCapture.install(id, manualBoot)
 
     fun exportUsbCapture(name: String, destination: Uri? = null) {

@@ -1,6 +1,37 @@
 # What's new
 
-## Fieldwatch-NG 1.1.17-ng-usb.2 — unreleased
+## Fieldwatch-NG 1.1.17-ng-usb.4 — 2026-10-03
+
+- Keep the USB session label when navigating between tabs, rotating the screen,
+  or restoring the activity from Android's saved state.
+- Make the keyboard Done/checkmark finish label editing and dismiss the keyboard.
+  Show the current label beside Start USB capture and read the saved draft when
+  starting a capture. Receiver firmware is unchanged.
+- Include the USB permission and C3 installation fixes from the local `ng-usb.3`
+  build in the published release.
+- Document physical C3 installation and BLE capture, plus user-confirmed phone
+  installation and Wi-Fi/GPS exports. The label UI fix is emulator-tested; phone
+  confirmation remains pending.
+- Credit Fieldwatch-NG contributions as Copyright 2026 Jascha Wanger, with a
+  [Jascha Wanger / DX.PE](https://dx.pe) link. Preserve upstream and third-party notices.
+
+## Fieldwatch-NG 1.1.17-ng-usb.3 — local test build
+
+- Fix USB installation/capture remaining at 0% / waiting for access after Android
+  grants permission. Immutable callbacks now carry their own request identity;
+  the current connected device and OS permission are checked before continuing.
+- Expire unanswered USB requests after 90 seconds, add a cancel control while
+  waiting, and show permission/connection stages separately from write progress.
+- Add Android permission regression tests for grant, denial, stale replies,
+  disconnect, cancellation and timeout. Receiver firmware is unchanged.
+- Remove an unnecessary ROM FLASH_END command after hash verification. The physical
+  C3 rejected it even after every region passed verification; the installer now
+  completes verification and uses the separate native USB reset to start the receiver.
+- Validate install/verify/reboot and a clean BLE capture with a physical C3 passed
+  through to an Android 15 emulator. Subsequently confirm phone installation and
+  inspect two user-supplied Wi-Fi exports, including optional observer GPS.
+
+## Fieldwatch-NG 1.1.17-ng-usb.2 — 2026-10-03
 
 - Install or update the C3 receiver directly from the Android app over USB OTG,
   including first-time installation using the built-in ROM bootloader. Bundled

@@ -8,10 +8,17 @@ controls, including **Install / update receiver firmware**, are under
 **Settings → USB research receiver**. The APK includes the C3 firmware for offline
 installation from an Android phone with USB OTG.
 
-[Download the Fieldwatch-NG APK](https://github.com/jaschadub/Fieldwatch/releases/download/v1.1.17-ng-usb.2/Fieldwatch-NG-1.1.17-ng-usb.2.apk) · [Firmware, checksums, and release notes](https://github.com/jaschadub/Fieldwatch/releases/tag/v1.1.17-ng-usb.2)
+[Download the Fieldwatch-NG APK](https://github.com/jaschadub/Fieldwatch/releases/download/v1.1.17-ng-usb.4/Fieldwatch-NG-1.1.17-ng-usb.4.apk) · [Firmware, checksums, and release notes](https://github.com/jaschadub/Fieldwatch/releases/tag/v1.1.17-ng-usb.4)
 
-This is a development prerelease with a development-signed APK; physical phone/OTG/C3
-validation is still pending. The APK installs beside upstream Fieldwatch.
+This is a **hardware-tested development prerelease** with a development-signed APK.
+Installation and capture have been tested with an ESP32-C3 Super Mini: BLE through
+an Android 15 emulator with USB passthrough, and Wi-Fi on a user's Android phone,
+including exports with GPS enabled and disabled. The APK installs beside upstream
+Fieldwatch. Version `ng-usb.4` also fixes session-label editing and retention.
+
+Fieldwatch-NG contributions by [Jascha Wanger / DX.PE](https://dx.pe).
+Copyright 2026 Jascha Wanger. Licensed under the [MIT License](LICENSE), with
+upstream and third-party notices preserved.
 
 ## Differences from upstream Fieldwatch
 
@@ -39,10 +46,19 @@ signatures are enabled by this extension. Firmware installation replaces the C3'
 application and resets its NVS/settings; phone settings and captures are preserved.
 Raw captures retain identifiers even when the ordinary app Privacy mode is on.
 
-**Validation status:** the implementation is covered by host tests and build checks;
-physical phone/OTG/C3 installation and capture tests are still pending. Multi-receiver
-hotspot sharing and RSSI source-area estimation are documented ideas, not implemented
-features. See the [setup guide and hardware checklist](docs/USB_RECEIVER.md).
+**Validation status:** 439 automated tests, Android lint, APK build and firmware-bundle
+checks pass. The `ng-usb.3` installer completed physical C3 flashing, verification
+and reboot, followed by 871 BLE packet records without reported loss. The user also
+confirmed installation from a phone and supplied two Wi-Fi captures: one with GPS
+on every packet, and one with GPS disabled. One phone capture reported invalid
+records and sequence gaps; testing does not establish lossless reception or
+compatibility with every phone/OTG adapter. The `ng-usb.4` label fix passed emulator
+checks for keyboard Done, tab navigation, rotation and saved-state restoration;
+phone confirmation of that UI fix is pending. See the
+[validation details and remaining hardware checks](docs/USB_RECEIVER.md#validation-and-hardware-checklist).
+
+Multi-receiver hotspot sharing and RSSI source-area estimation are documented
+ideas, not implemented features.
 
 Report fork-specific issues in [this fork](https://github.com/jaschadub/Fieldwatch/issues).
 
@@ -118,6 +134,9 @@ Uninstall wipes what is on the phone. If you added signatures, changed Settings,
 - Not direction finding
 
 ## Copyright and license
+
+Fieldwatch-NG contributions: Copyright 2026 Jascha Wanger.
+[Jascha Wanger / DX.PE](https://dx.pe)
 
 Copyright (c) 2026 Off Grid Pete LLC.
 

@@ -84,7 +84,9 @@ class UsbInstallerTest {
                 4 -> assertArrayEquals(Esp32C3Installer.words(1), data)
                 else -> error("Unexpected write opcode $op")
             }
-            val status = byteArrayOf(if (op == failOp) 1 else 0, 7, 0, 0)
+            // The physical C3 rejects FLASH_END after our verified-ROM write sequence.
+            val status = if (op == 4) byteArrayOf(1, 6, 0, 0)
+                else byteArrayOf(if (op == failOp) 1 else 0, 7, 0, 0)
             val payload = result + status
             val response = byteArrayOf(1, op.toByte(), payload.size.toByte(), 0) + Esp32C3Installer.words(value) + payload
             repeat(if (op == 8) 8 else 1) { RomSlipReader.encode(response).forEach(rx::addLast) }
@@ -104,7 +106,8 @@ class UsbInstallerTest {
         installer(rom).install(parts, false) { _, p -> progress += p }
         parts.forEach { assertArrayEquals(it.bytes, rom.flashed.getValue(it.offset).copyOf(it.bytes.size)) }
         assertEquals(4, rom.ops.count { it == 19 })
-        assertEquals(4, rom.ops.last())
+        assertEquals(19, rom.ops.last())
+        assertFalse(rom.ops.contains(4))
         assertEquals(96, progress.last())
         assertEquals(progress.sorted(), progress)
         assertEquals(listOf(false to false, true to false, true to true, false to true, false to false), rom.resets)

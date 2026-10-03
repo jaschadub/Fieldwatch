@@ -5,6 +5,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -13,6 +15,9 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.foundation.layout.Row
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -29,11 +34,13 @@ import kotlinx.coroutines.delay
 @Composable
 fun UsbCaptureCard(vm: FieldwatchViewModel, scanning: Boolean) {
     val state by vm.usbCaptureState.collectAsStateWithLifecycle()
+    val label by vm.usbSessionLabel.collectAsStateWithLifecycle()
+    val focusManager = LocalFocusManager.current
+    val keyboard = LocalSoftwareKeyboardController.current
     var receivers by remember { mutableStateOf(vm.usbReceivers()) }
     var selected by remember { mutableStateOf<Int?>(null) }
     var mode by remember { mutableStateOf(CaptureProtocol.Mode.WIFI) }
     var channel by remember { mutableIntStateOf(0) }
-    var label by remember { mutableStateOf("") }
     var gps by remember { mutableStateOf(false) }
     var files by remember { mutableStateOf(vm.usbCaptureFiles()) }
     var selectedFile by remember { mutableStateOf<String?>(null) }
@@ -61,12 +68,27 @@ fun UsbCaptureCard(vm: FieldwatchViewModel, scanning: Boolean) {
     }
     SectionCard("USB research receiver") {
         Text("ESP32-C3 Super Mini · Fieldwatch-NG capture firmware", style = MaterialTheme.typography.bodyMedium)
-        OutlinedTextField(label, { label = it.take(64) }, label = { Text("Session label / location note") },
-            singleLine = true, enabled = !state.active)
+        OutlinedTextField(label, vm::setUsbSessionLabel, label = { Text("Session label / location note") },
+            singleLine = true, enabled = !state.active,
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+            keyboardActions = KeyboardActions(onDone = {
+                focusManager.clearFocus()
+                keyboard?.hide()
+            }))
         Text(state.status, style = MaterialTheme.typography.bodyMedium)
+        if (state.awaitingUsbPermission) {
+            Text("Approve USB access on this phone. Firmware writing has not started.",
+                style = MaterialTheme.typography.bodySmall)
+            FieldwatchActionButton(vm::cancelUsbPermissionRequest) { Text("Cancel USB request") }
+        }
         if (state.installing) {
-            LinearProgressIndicator(progress = { state.installPercent / 100f })
-            Text("${state.installPercent}% · Keep USB connected until verification finishes.")
+            if (state.installPercent == 0) {
+                LinearProgressIndicator()
+                if (!state.awaitingUsbPermission) Text("Preparing receiver · Keep USB connected.")
+            } else {
+                LinearProgressIndicator(progress = { state.installPercent / 100f })
+                Text("${state.installPercent}% · Keep USB connected until verification finishes.")
+            }
         }
         Text("${state.packets} packets · ${state.bytes / 1024} KiB · ${state.gaps} sequence gaps · " +
             "${state.deviceDrops} receiver drops · ${state.invalid} invalid records", style = MaterialTheme.typography.bodySmall)
@@ -103,8 +125,13 @@ fun UsbCaptureCard(vm: FieldwatchViewModel, scanning: Boolean) {
             Text("Include available phone GPS in raw export")
         }
         if (!scanning && !state.active) Text("Start Fieldwatch scanning before starting the USB receiver.")
+        Text("Session: ${label.ifBlank { "No label" }}", style = MaterialTheme.typography.bodySmall)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            FieldwatchActionButton({ selected?.let { vm.startUsbCapture(it, mode, channel, label, gps) } },
+            FieldwatchActionButton({
+                focusManager.clearFocus()
+                keyboard?.hide()
+                selected?.let { vm.startUsbCapture(it, mode, channel, gps) }
+            },
                 enabled = scanning && selected != null && !state.active) { Text("Start USB capture") }
             FieldwatchActionButton(vm::stopUsbCapture, enabled = state.active && !state.installing) { Text("Stop USB capture") }
         }
