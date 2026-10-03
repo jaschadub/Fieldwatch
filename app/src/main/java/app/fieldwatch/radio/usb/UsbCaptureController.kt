@@ -11,7 +11,6 @@ import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import android.os.PowerManager
-import android.location.LocationManager
 import androidx.core.content.ContextCompat
 import app.fieldwatch.BuildConfig
 import app.fieldwatch.domain.Observation
@@ -37,6 +36,7 @@ data class UsbCaptureState(
     val file: String? = null,
     val installing: Boolean = false, val installPercent: Int = 0,
     val awaitingUsbPermission: Boolean = false,
+    val elapsedMs: Long = 0, val mode: String? = null, val channel: Int = 0, val gpsIncluded: Boolean = false,
 )
 data class UsbReceiver(val id: Int, val label: String)
 
@@ -96,7 +96,8 @@ class UsbCaptureController(private val context: Context) {
         if (device == null) { mutable.value = UsbCaptureState(status = "Connect an ESP32-C3 native USB receiver"); return }
         require(channel in 0..11)
         deviceId = id
-        mutable.value = UsbCaptureState(active = true, status = "Connecting USB receiver…")
+        mutable.value = UsbCaptureState(active = true, status = "Connecting USB receiver…",
+            mode = mode.name, channel = channel, gpsIncluded = gps)
         val request = Request(device, mode, if (mode == CaptureProtocol.Mode.WIFI) channel else 0,
             label.filterNot(Char::isISOControl).take(64), gps, observe)
         requestAccess(request)
@@ -249,6 +250,7 @@ class UsbCaptureController(private val context: Context) {
             var finalStatus = "USB capture stopped"
             var packets = 0L; var invalid = 0L; var gaps = 0L; var drops = 0L
             val guard = CaptureSessionGuard(request.mode, request.channel)
+            val startedElapsed = SystemClock.elapsedRealtime()
             var framingErrors = 0L
             var wake: PowerManager.WakeLock? = null
             try {
@@ -269,7 +271,7 @@ class UsbCaptureController(private val context: Context) {
                     currentCoroutineContext().ensureActive()
                     val now = SystemClock.elapsedRealtime()
                     check(now - connectedAt < MAX_SESSION_MS) { "30-minute capture limit reached" }
-                    if (request.gps && now - lastGps >= 1000) { gps = observerFix(); lastGps = now }
+                    if (request.gps && now - lastGps >= 1000) { gps = CaptureGps.read(context, true).fix; lastGps = now }
                     if (now - lastPing >= 1000) { serial.write("PING\n"); lastPing = now }
                     val count = serial.read(buffer)
                     if (count > 0) lines.feed(buffer, count) { line ->
@@ -321,7 +323,8 @@ class UsbCaptureController(private val context: Context) {
                         mutable.value = UsbCaptureState(true,
                             if (guard.started) "USB ${request.mode} capture running" else "Waiting for receiver firmware…",
                             packets, invalid + lines.rejected, gaps, drops, session?.bytesWritten ?: 0,
-                            session?.file?.name)
+                            session?.file?.name, elapsedMs = now - startedElapsed, mode = request.mode.name,
+                            channel = request.channel, gpsIncluded = request.gps)
                         lastPublish = now
                     }
                 }
@@ -339,7 +342,9 @@ class UsbCaptureController(private val context: Context) {
                     .onFailure { finalStatus = "Capture storage error: ${it.message}" }
                 runCatching { session?.close() }.onFailure { finalStatus = "Could not flush capture file" }
                 mutable.value = UsbCaptureState(false, finalStatus, packets, invalid + framingErrors, gaps, drops,
-                    session?.bytesWritten ?: 0, session?.file?.name)
+                    session?.bytesWritten ?: 0, session?.file?.name,
+                    elapsedMs = SystemClock.elapsedRealtime() - startedElapsed, mode = request.mode.name,
+                    channel = request.channel, gpsIncluded = request.gps)
             }
         }
         job = captureJob
@@ -348,21 +353,6 @@ class UsbCaptureController(private val context: Context) {
                 mutable.value = mutable.value.copy(active = false)
         }
         captureJob.start()
-    }
-
-    /** The observer's recent position, never the transmitter's location. Missing permission/fix is null. */
-    @android.annotation.SuppressLint("MissingPermission")
-    private fun observerFix(): JSONObject? {
-        if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_FINE_LOCATION) !=
-            android.content.pm.PackageManager.PERMISSION_GRANTED) return null
-        val locations = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
-        val now = SystemClock.elapsedRealtimeNanos()
-        val fix = listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER).mapNotNull {
-            runCatching { locations.getLastKnownLocation(it) }.getOrNull()
-        }.filter { now - it.elapsedRealtimeNanos in 0..30_000_000_000L && it.hasAccuracy() && it.accuracy <= 75f }
-            .minByOrNull { it.accuracy } ?: return null
-        return JSONObject().put("lat", fix.latitude).put("lon", fix.longitude)
-            .put("accuracy_m", fix.accuracy).put("fix_at_ms", fix.time)
     }
 
     companion object {

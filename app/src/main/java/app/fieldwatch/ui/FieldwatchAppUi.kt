@@ -123,6 +123,7 @@ import app.fieldwatch.ui.screen.LivePane
 import app.fieldwatch.ui.screen.CandidatesScreen
 import app.fieldwatch.ui.screen.RadioBookmarksScreen
 import app.fieldwatch.ui.screen.ReportsScreen
+import app.fieldwatch.ui.screen.CaptureScreen
 import app.fieldwatch.ui.screen.SettingsScreen
 import app.fieldwatch.ui.theme.FieldwatchTheme
 
@@ -377,7 +378,7 @@ private fun FieldwatchShell(state: FieldwatchUi, vm: FieldwatchViewModel) {
                     expandedHeight = 52.dp,
                     title = {
                         val screenW = LocalConfiguration.current.screenWidthDp.dp
-                        val actionW = if (route == "live") 56.dp else 16.dp
+                        val actionW = if (route == "live") 144.dp else 104.dp
                         Column(
                             modifier = Modifier
                                 .widthIn(max = (screenW - 20.dp - actionW).coerceAtLeast(120.dp))
@@ -432,6 +433,9 @@ private fun FieldwatchShell(state: FieldwatchUi, vm: FieldwatchViewModel) {
                         }
                     },
                     actions = {
+                        TextButton(onClick = { nav.navigate("capture") { launchSingleTop = true } }) {
+                            Text("Capture")
+                        }
                         if (route == "live") {
                             IconButton(
                                 onClick = {
@@ -625,6 +629,7 @@ private fun FieldwatchShell(state: FieldwatchUi, vm: FieldwatchViewModel) {
                     },
                 )
             }
+            composable("capture") { CaptureScreen(state, vm) }
             composable("filters") { FiltersScreen(state, vm) }
             composable("reports") {
                 ReportsScreen(
@@ -658,6 +663,7 @@ private fun FieldwatchShell(state: FieldwatchUi, vm: FieldwatchViewModel) {
                     state = state,
                     vm = vm,
                     onRadioBookmarks = { nav.navigate("radio-bookmarks") },
+                    onCapture = { nav.navigate("capture") { launchSingleTop = true } },
                     onShowLiveTour = {
                         vm.showLiveTour {
                             nav.navigate("live") { launchSingleTop = true }

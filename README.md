@@ -4,11 +4,28 @@ This fork adds an optional **ESP32-C3 Super Mini USB research receiver**. See th
 [USB receiver setup and capture guide](docs/USB_RECEIVER.md) for the Android build,
 receiver firmware, OTG connection, capture/export controls, and limitations.
 The fork installs as `app.fieldwatch.ng` alongside upstream Fieldwatch. Its USB
-controls, including **Install / update receiver firmware**, are under
-**Settings → USB research receiver**. The APK includes the C3 firmware for offline
-installation from an Android phone with USB OTG.
+controls are available from **Capture** in the top bar, with a shortcut in
+**Settings → USB research receiver → Open Capture**. The APK includes the C3 firmware
+for offline installation from an Android phone with USB OTG.
 
-[Download the Fieldwatch-NG APK](https://github.com/jaschadub/Fieldwatch/releases/download/v1.1.17-ng-usb.4/Fieldwatch-NG-1.1.17-ng-usb.4.apk) · [Firmware, checksums, and release notes](https://github.com/jaschadub/Fieldwatch/releases/tag/v1.1.17-ng-usb.4)
+**Recommended USB receiver:** [ESP32-C3 Super Mini — buy on Amazon](https://amzn.to/4i4g3dp)
+(affiliate link). Connect its native USB port with a data cable and a phone USB OTG
+adapter if needed. See the [hardware requirements](docs/USB_RECEIVER.md#hardware).
+
+[Download the Fieldwatch-NG APK](https://github.com/jaschadub/Fieldwatch/releases/download/v1.1.17-ng-usb.5/Fieldwatch-NG-1.1.17-ng-usb.5.apk) · [Firmware, checksums, and release notes](https://github.com/jaschadub/Fieldwatch/releases/tag/v1.1.17-ng-usb.5)
+
+**New in `ng-usb.5`: the Capture workspace.** Update the APK to get these controls;
+the receiver firmware remains `0.1.0`, so a working receiver needs no reflash.
+
+- **Recorder:** persistent Start/Stop controls, connection status, elapsed time,
+  packet count/rate, mode and channel selection, and a collapsible firmware installer.
+- **Library:** session names, dates, duration, Wi-Fi/BLE mode and GPS choice, with
+  editable names and notes. Original recording bytes remain unchanged.
+- **Observer GPS:** current readiness, accuracy and fix age, including explicit
+  waiting, stale, inaccurate, disabled and missing-permission states.
+- **Wireshark export:** Save/Share PCAPNG for Wi-Fi management frames with channel,
+  RSSI, phone receipt timestamps and available observer GPS in packet comments.
+  JSONL export remains available for both Wi-Fi and BLE.
 
 This is a **hardware-tested development prerelease** with a development-signed APK.
 Installation and capture have been tested with an ESP32-C3 Super Mini: BLE through
@@ -33,7 +50,7 @@ specific to this fork:
 | Wi-Fi capture | AP scan results exposed by Android | Passive management-frame bytes on 2.4 GHz channels 1–11, hopping or fixed channel; external capture is independent of Android's Wi-Fi scan quotas |
 | BLE capture | Advertisements exposed by Android | Passive legacy advertisement AD bytes, address/type, RSSI, and receiver timestamps from the C3 |
 | Firmware installation | No external receiver installer | Phone-based offline C3 install/update, explicit confirmation, chip/security/flash-size checks, bundled-image SHA-256 checks, on-device MD5 verification, progress, and BOOT/RESET fallback |
-| Research exports | Existing logs and report exports | Separate bounded raw JSONL captures with session labels, sequence/loss counters, optional observer GPS, and share/save/delete controls |
+| Research exports | Existing logs and report exports | Dedicated Capture workspace, named library with notes, GPS readiness, JSONL and Wi-Fi PCAPNG export |
 | Live integration | Phone observations | USB BLE advertisements and complete AP beacons/probe responses feed the existing matcher; other management frames stay in the raw archive |
 | Installation | `app.fieldwatch` | `app.fieldwatch.ng`, displayed as Fieldwatch-NG; installs beside the original app |
 | Validation | Existing Android tests/build | Additional USB framing, parser, archive, bootloader and installer tests; C3 firmware build and bundle checks in CI; Android lint error fixes |
@@ -46,7 +63,7 @@ signatures are enabled by this extension. Firmware installation replaces the C3'
 application and resets its NVS/settings; phone settings and captures are preserved.
 Raw captures retain identifiers even when the ordinary app Privacy mode is on.
 
-**Validation status:** 439 automated tests, Android lint, APK build and firmware-bundle
+**Validation status:** 449 automated tests, Android lint, APK build and firmware-bundle
 checks pass. The `ng-usb.3` installer completed physical C3 flashing, verification
 and reboot, followed by 871 BLE packet records without reported loss. The user also
 confirmed installation from a phone and supplied two Wi-Fi captures: one with GPS
@@ -54,7 +71,9 @@ on every packet, and one with GPS disabled. One phone capture reported invalid
 records and sequence gaps; testing does not establish lossless reception or
 compatibility with every phone/OTG adapter. The `ng-usb.4` label fix passed emulator
 checks for keyboard Done, tab navigation, rotation and saved-state restoration;
-phone confirmation of that UI fix is pending. See the
+phone confirmation of that UI fix is pending. The `ng-usb.5` library and file-saving
+workflow were checked in the Android emulator with synthetic captures. Wireshark
+also decoded the Android-exported PCAPNG frames and their radio metadata. See the
 [validation details and remaining hardware checks](docs/USB_RECEIVER.md#validation-and-hardware-checklist).
 
 Multi-receiver hotspot sharing and RSSI source-area estimation are documented

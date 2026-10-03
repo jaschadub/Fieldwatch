@@ -85,6 +85,7 @@ fun SettingsScreen(
     state: FieldwatchUi,
     vm: FieldwatchViewModel,
     onRadioBookmarks: () -> Unit,
+    onCapture: () -> Unit,
     onShowLiveTour: () -> Unit = {},
 ) {
     val context = LocalContext.current
@@ -114,7 +115,10 @@ fun SettingsScreen(
                 .padding(horizontal = 12.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            UsbCaptureCard(vm, state.scanning)
+            SectionCard("USB research receiver") {
+                Text("Record Wi-Fi or BLE, manage saved captures, and install receiver firmware.")
+                FieldwatchActionButton(onCapture) { Text("Open Capture") }
+            }
             SectionCard("Appearance") {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Night mode", Modifier.weight(1f))

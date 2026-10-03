@@ -28,8 +28,8 @@ android {
         applicationId = "app.fieldwatch.ng"
         minSdk = 29
         targetSdk = 35
-        versionCode = 31
-        versionName = "1.1.17-ng-usb.4"
+        versionCode = 32
+        versionName = "1.1.17-ng-usb.5"
         vectorDrawables.useSupportLibrary = true
     }
 

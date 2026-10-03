@@ -1,5 +1,20 @@
 # What's new
 
+## Fieldwatch-NG 1.1.17-ng-usb.5 — 2026-10-03
+
+- Add a dedicated Capture workspace, accessible from the top bar and Settings,
+  with persistent Start/Stop controls, receiver status, elapsed time and packet rate.
+- Add a named capture library with dates, duration, mode, GPS choice and completion
+  status. Edit session names and notes without modifying original recording bytes;
+  include the annotations in exports.
+- Show GPS readiness, accuracy and fix age using the same 30-second/75-metre rules
+  as the recorder, with explicit missing-permission, disabled, stale and inaccurate states.
+- Export Wi-Fi management frames to PCAPNG with radiotap channel/RSSI, receipt
+  timestamps, truncation lengths and observer GPS comments. BLE continues to use JSONL.
+- Fix USB Save confirmation incorrectly saying the log was cleared.
+- Add the recommended ESP32-C3 Super Mini affiliate link to the README and guide.
+  Receiver firmware remains `0.1.0`; no receiver update is required.
+
 ## Fieldwatch-NG 1.1.17-ng-usb.4 — 2026-10-03
 
 - Keep the USB session label when navigating between tabs, rotating the screen,

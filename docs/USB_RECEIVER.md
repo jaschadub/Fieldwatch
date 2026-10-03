@@ -5,10 +5,15 @@ The board receives radio data; Android stores it and displays compatible observa
 This extension requires both the fork's APK and the receiver firmware. The upstream
 Fieldwatch APK and bundled upstream PDF do not describe or implement it.
 
+These instructions describe `ng-usb.5`. In the older `ng-usb.4` APK, recording and
+installation controls are grouped under Settings → USB research receiver;
+the dedicated workspace is new in `ng-usb.5`.
+
 ## Hardware
 
 - An Android phone with USB host/OTG support.
-- ESP32-C3 Super Mini with its **native USB Serial/JTAG** connector.
+- [Recommended ESP32-C3 Super Mini](https://amzn.to/4i4g3dp) (affiliate link), with its
+  **native USB Serial/JTAG** connector.
 - A USB data cable and, if needed, a phone OTG adapter. The phone normally powers the board.
 
 The initial driver accepts Espressif VID `303A`, PID `1001` and its CDC serial
@@ -25,10 +30,10 @@ data cable. A powered OTG hub may help a phone that cannot supply stable power.
 The Fieldwatch-NG APK bundles the receiver firmware; no Internet or computer is
 needed for this step. Install the APK on an Android phone with USB host/OTG support:
 
-1. Connect the spare C3 and open **Settings → USB research receiver**.
+1. Connect the spare C3 and open **Capture** in the top bar, then **Recorder**.
 2. Stop any active USB capture. Select the connected receiver.
-3. Tap **Install / update receiver firmware**, review the replacement notice, and
-   tap **Install firmware**. Grant Android USB access if requested. Main radio
+3. Expand **Receiver setup → Install / update receiver firmware**, tap
+   **Install firmware…**, review the replacement notice, and confirm. Grant Android USB access if requested. Main radio
    scanning does not have to be running for installation.
 4. Keep USB connected while the app checks the chip, erases/writes, and verifies
    each region. A foreground notification shows progress if the screen turns off.
@@ -124,22 +129,26 @@ does not clear NVS unless you erase it separately.
 ## Collect a session
 
 1. Open Fieldwatch-NG, grant its normal scanning permissions, and start scanning.
-2. Connect the C3 to the phone. Open **Settings → USB research receiver**.
+2. Connect the C3 to the phone. Open **Capture → Recorder** from the top bar.
 3. Choose the receiver. Add a short session label such as `store-a-cart-area`.
    In `ng-usb.4`, the keyboard **Done/checkmark** finishes editing and dismisses the
    keyboard. The label survives tab navigation, rotation and Android saved-state
-   restoration; confirm it beside **Start USB capture**. Tap the field to edit it
+   restoration; confirm it in the Session card. Tap the field to edit it
    again before the next capture. The label is written in the first `session`
    record of the JSONL file; it does not rename the file.
 4. Choose **Wi-Fi management** (hop 1–11 or hold a channel) or **BLE advertisements**.
-5. Optionally enable **Include available phone GPS in raw export**. A fix must be
+5. Optionally enable **Include phone GPS in capture**. Check the readiness indicator:
+   it shows accuracy and fix age, or explains why a fix is unavailable. A fix must be
    at most 30 seconds old and have reported accuracy of 75 m or better. Missing fixes
    are `null`; the position belongs to the observer, never the transmitter. Existing
    Settings → Tag detections with GPS controls the phone's location update requests.
+   If those updates are off, **Enable location tagging** turns on that shared setting
+   for captures and ordinary detections. Recording can still run without a usable fix.
 6. Tap **Start USB capture** and allow Android's USB access request. Confirm the
    status says capture is running and the packet counter increases near a known source.
-7. Tap **Stop USB capture**, then select the saved capture and **Share JSONL** or
-   **Save JSONL**. Export is enabled after the writer closes.
+7. Tap **Stop USB capture**, then **Library → Details & export** on the saved session.
+   Choose **Share JSONL**, **Save JSONL**, or Wi-Fi **Share/Save PCAPNG**. Export is
+   enabled after the writer closes. Start/Stop stays visible while scrolling.
 
 These controls create a separate research file, even if ordinary Write to disk is off.
 The normal Reports → Log export is not the USB raw archive. BLE observations and
@@ -152,6 +161,41 @@ of the same advertiser, while USB raw files contain only external-receiver recor
 No capture begins automatically on attach, permission grant from a previous session,
 app restart or reconnect. Stop the main scan or unplug USB to end the active capture.
 After reconnecting, start a new session. A short partial file survives an interruption.
+
+## Named capture library
+
+Each library entry shows its session name, start date/time, duration, capture mode,
+file size and completion state. Packet totals appear when a clean end record exists.
+**GPS requested** means GPS was enabled for that session, not that every packet has
+a location. Interrupted sessions remain visible as **Incomplete**.
+
+Use **Name & notes** after stopping to rename a session or add field notes. These
+annotations are saved separately; original JSONL bytes and the original session
+label are preserved. Exported JSONL adds `library_title` and `library_notes` to its
+session header. PCAPNG stores them in a capture comment. Deleting a recording also
+removes its annotations. Older unlabelled recordings appear as **Untitled capture**.
+
+## Wireshark export
+
+For a Wi-Fi session, use **Save PCAPNG** or **Share PCAPNG**, then open the result in
+Wireshark. Frames use radiotap encapsulation with the receiver's channel and RSSI.
+Captured and original frame lengths preserve truncation, and removed FCS bytes are
+not re-created. Packet timestamps are Android's USB receipt time at millisecond
+resolution; receiver microseconds and sequence numbers remain in packet comments.
+These are not synchronized RF arrival timestamps. Available observer GPS is also
+included in comments, so PCAPNG has the same location-sharing sensitivity as JSONL.
+
+Invalid packet records are skipped with an explicit export count. A capture without
+a clean end record can still export its valid Wi-Fi packets and is identified as
+incomplete. Export fails clearly if no valid Wi-Fi packets remain. Keep the original
+JSONL for loss counters, protocol records and further analysis.
+
+BLE remains JSONL-only: its records contain advertisement AD bytes, not complete
+Bluetooth link-layer packets. The exporter does not manufacture missing radio fields.
+
+Format references: [PCAPNG specification](https://datatracker.ietf.org/doc/draft-ietf-opsawg-pcapng/06/),
+[radiotap channel](https://www.radiotap.org/fields/Channel) and
+[signal strength](https://www.radiotap.org/fields/Antenna%20signal.html).
 
 ## Coverage and limits
 
@@ -282,6 +326,18 @@ Done/checkmark dismisses the keyboard and clears focus, the capture summary show
 the entered label, and the label survives tab navigation, rotation and process
 recreation using Android's saved state. Confirmation of this UI update on the
 user's phone remains pending. Receiver firmware is unchanged at `0.1.0`.
+
+The `ng-usb.5` build passed 449 tests and Android lint with no errors. Tests cover
+annotation persistence without changing original bytes, interrupted recordings,
+GPS age/accuracy boundaries, PCAPNG block structure, timestamps and truncation.
+The Android 15 emulator was used to rename a synthetic session, add notes, save
+JSONL and PCAPNG through the document picker, and open the sharing chooser. Its
+minimal system image has no compatible sharing app, so delivery to another app
+was not tested. Wireshark/TShark 4.6.4 decoded all three Android-exported synthetic
+frames with the expected SSID, channel and RSSI. Physical phone confirmation of
+the new Capture workspace remains pending. Emulator location checks also confirmed
+the ready/accuracy/age display and disabled-location state, and edited capture names
+and notes survived an app restart.
 
 Before field use, repeat the relevant checks on your phone and spare C3. Interrupted
 installation recovery, prolonged capture and broader phone compatibility remain

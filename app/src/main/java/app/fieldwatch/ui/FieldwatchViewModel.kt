@@ -1,5 +1,9 @@
 package app.fieldwatch.ui
 
+import app.fieldwatch.radio.usb.CaptureEntry
+import app.fieldwatch.radio.usb.CaptureLibrary
+import app.fieldwatch.radio.usb.CaptureGps
+import app.fieldwatch.radio.usb.WifiPcapng
 import app.fieldwatch.radio.usb.CaptureProtocol
 import app.fieldwatch.radio.ScanService
 import android.app.Application
@@ -78,6 +82,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.yield
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -154,10 +159,9 @@ class FieldwatchViewModel(application: Application, private val savedState: Save
             savedState["usbSessionLabel"] = value.filterNot(Char::isISOControl).take(64)
     }
     fun usbReceivers() = app.usbCapture.receivers()
-    fun usbCaptureFiles() = app.usbCapture.archive.files()
 
     fun startUsbCapture(device: Int, mode: CaptureProtocol.Mode, channel: Int, gps: Boolean) {
-        if (!app.devices.stats.value.scanning) return
+        if (!app.devices.stats.value.scanning || _usbBusy.value) return
         app.startService(Intent(app, ScanService::class.java)
             .setAction(ScanService.ACTION_USB_START)
             .putExtra("device", device).putExtra("mode", mode.name).putExtra("channel", channel)
@@ -165,38 +169,103 @@ class FieldwatchViewModel(application: Application, private val savedState: Save
     }
     fun stopUsbCapture() = app.usbCapture.stopCapture()
     fun cancelUsbPermissionRequest() = app.usbCapture.cancelUsbPermissionRequest()
-    fun installUsbFirmware(id: Int, manualBoot: Boolean) = app.usbCapture.install(id, manualBoot)
+    fun installUsbFirmware(id: Int, manualBoot: Boolean) {
+        if (!_usbBusy.value) app.usbCapture.install(id, manualBoot)
+    }
 
-    fun exportUsbCapture(name: String, destination: Uri? = null) {
+    private val usbLibraryStore = CaptureLibrary(app.usbCapture.archive)
+    private val _usbLibrary = MutableStateFlow<List<CaptureEntry>>(emptyList())
+    val usbLibrary = _usbLibrary.asStateFlow()
+    private val _usbBusy = MutableStateFlow(false)
+    val usbBusy = _usbBusy.asStateFlow()
+    val usbMode = savedState.getStateFlow("usbMode", "WIFI")
+    val usbChannel = savedState.getStateFlow("usbChannel", 0)
+    val usbGpsEnabled = savedState.getStateFlow("usbGpsEnabled", false)
+    fun setUsbMode(value: String) { if (!usbCaptureState.value.active) savedState["usbMode"] = value }
+    fun setUsbChannel(value: Int) { if (!usbCaptureState.value.active) savedState["usbChannel"] = value }
+    fun setUsbGpsEnabled(value: Boolean) { if (!usbCaptureState.value.active) savedState["usbGpsEnabled"] = value }
+    fun usbGpsReading(requested: Boolean) = CaptureGps.read(app, requested)
+    fun refreshUsbLibrary() {
         viewModelScope.launch {
-            runCatching {
-                check(!app.usbCapture.state.value.active) { "Stop USB capture before exporting" }
-                val file = app.usbCapture.archive.files().firstOrNull { it.name == name }
-                    ?: error("Capture file not found")
-                if (destination != null) {
-                    withContext(Dispatchers.IO) {
+            runCatching { withContext(Dispatchers.IO) { usbLibraryStore.entries() } }
+                .onSuccess { _usbLibrary.value = it }
+                .onFailure { _export.value = ExportUi(error = it.message, errorTitle = "Capture library") }
+        }
+    }
+    fun renameUsbCapture(name: String, title: String, notes: String) {
+        if (usbCaptureState.value.active || _usbBusy.value) return
+        _usbBusy.value = true
+        viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO) { usbLibraryStore.annotate(name, title, notes) }
+                refreshUsbLibrary()
+            } catch (e: Exception) {
+                _export.value = ExportUi(error = e.message, errorTitle = "Capture details")
+            } finally { _usbBusy.value = false }
+        }
+    }
+    fun exportUsbCapture(name: String, destination: Uri? = null, pcap: Boolean = false) {
+        if (usbCaptureState.value.active || _usbBusy.value) return
+        _usbBusy.value = true
+        viewModelScope.launch {
+            var output: File? = null
+            try {
+                val (file, detail) = withContext(Dispatchers.IO) {
+                    val entry = usbLibraryStore.entries().firstOrNull { it.name == name }
+                        ?: error("Capture file not found")
+                    val folder = File(app.cacheDir, "export/usb").apply { check(isDirectory || mkdirs()) }
+                    folder.listFiles().orEmpty().filter { System.currentTimeMillis() - it.lastModified() > 86_400_000 }
+                        .forEach { it.delete() }
+                    val safeName = entry.title.replace(Regex("[^A-Za-z0-9_-]+"), "-").take(60).ifBlank { "capture" }
+                    val file = File(folder, "$safeName-${UUID.randomUUID()}.${if (pcap) "pcapng" else "jsonl"}")
+                    output = file
+                    var detail = "JSONL includes the library name and notes; the original recording is unchanged."
+                    file.outputStream().buffered().use { out ->
+                        if (pcap) {
+                            val result = WifiPcapng.export(usbLibraryStore.file(name), out, entry.title, entry.notes)
+                            detail = "${result.packets} Wi-Fi packets exported · ${result.skipped} invalid records skipped." +
+                                if (result.incomplete) " Original capture ended without a clean end record." else ""
+                        } else usbLibraryStore.exportJsonl(entry, out)
+                    }
+                    if (destination != null) {
                         app.contentResolver.openOutputStream(destination)?.use { out ->
                             file.inputStream().use { it.copyTo(out) }
                         } ?: error("Could not open export destination")
                     }
-                    _export.value = ExportUi(message = "USB capture saved", cleared = true)
+                    file to detail
+                }
+                if (destination != null) {
+                    file.delete()
+                    _export.value = ExportUi(noticeTitle = "Capture saved", noticeMessage = detail)
                 } else {
                     val uri = FileProvider.getUriForFile(app, "${app.packageName}.files", file)
                     val share = Intent(Intent.ACTION_SEND).apply {
-                        type = "application/x-ndjson"
+                        type = if (pcap) "application/x-pcapng" else "application/x-ndjson"
                         clipData = ClipData.newRawUri("USB capture", uri)
                         putExtra(Intent.EXTRA_STREAM, uri)
                         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                     }
-                    _export.value = ExportUi(share = share, shareTitle = "USB research capture")
+                    _export.value = ExportUi(share = share, shareTitle = "USB research capture",
+                        noticeTitle = if (pcap) "Wireshark export prepared" else null,
+                        noticeMessage = if (pcap) detail else null)
                 }
-            }.onFailure { _export.value = ExportUi(error = it.message, errorTitle = "USB capture export") }
+            } catch (e: Exception) {
+                output?.delete()
+                _export.value = ExportUi(error = e.message, errorTitle = "USB capture export")
+            } finally { _usbBusy.value = false }
         }
     }
-
     fun deleteUsbCapture(name: String) {
-        if (app.usbCapture.state.value.active) return
-        app.usbCapture.archive.files().firstOrNull { it.name == name }?.delete()
+        if (usbCaptureState.value.active || _usbBusy.value) return
+        _usbBusy.value = true
+        viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO) { usbLibraryStore.delete(name) }
+                refreshUsbLibrary()
+            } catch (e: Exception) {
+                _export.value = ExportUi(error = e.message, errorTitle = "Delete capture")
+            } finally { _usbBusy.value = false }
+        }
     }
     private val filters = FilterEngine()
     private val signatures = SignatureEngine()
