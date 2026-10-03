@@ -25,11 +25,11 @@ android {
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "app.fieldwatch"
+        applicationId = "app.fieldwatch.ng"
         minSdk = 29
         targetSdk = 35
-        versionCode = 27
-        versionName = "1.1.17"
+        versionCode = 29
+        versionName = "1.1.17-ng-usb.2"
         vectorDrawables.useSupportLibrary = true
     }
 

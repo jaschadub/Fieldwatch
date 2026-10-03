@@ -1,4 +1,51 @@
-# Fieldwatch
+# Fieldwatch-NG
+
+This fork adds an optional **ESP32-C3 Super Mini USB research receiver**. See the
+[USB receiver setup and capture guide](docs/USB_RECEIVER.md) for the Android build,
+receiver firmware, OTG connection, capture/export controls, and limitations.
+The fork installs as `app.fieldwatch.ng` alongside upstream Fieldwatch. Its USB
+controls, including **Install / update receiver firmware**, are under
+**Settings → USB research receiver**. The APK includes the C3 firmware for offline
+installation from an Android phone with USB OTG.
+
+## Differences from upstream Fieldwatch
+
+Fieldwatch-NG is based on [OffGridPete/Fieldwatch](https://github.com/OffGridPete/Fieldwatch),
+version 1.1.17 with catalog 90 (`cf6562d`). It retains the existing live views,
+signature matching, alerts, reports, and MIT license. The following changes are
+specific to this fork:
+
+| Area | Upstream base | Fieldwatch-NG additions |
+| --- | --- | --- |
+| Receiver | Phone Wi-Fi and BLE scan APIs | Optional ESP32-C3 Super Mini over native USB, alongside phone scans |
+| Wi-Fi capture | AP scan results exposed by Android | Passive management-frame bytes on 2.4 GHz channels 1–11, hopping or fixed channel; external capture is independent of Android's Wi-Fi scan quotas |
+| BLE capture | Advertisements exposed by Android | Passive legacy advertisement AD bytes, address/type, RSSI, and receiver timestamps from the C3 |
+| Firmware installation | No external receiver installer | Phone-based offline C3 install/update, explicit confirmation, chip/security/flash-size checks, bundled-image SHA-256 checks, on-device MD5 verification, progress, and BOOT/RESET fallback |
+| Research exports | Existing logs and report exports | Separate bounded raw JSONL captures with session labels, sequence/loss counters, optional observer GPS, and share/save/delete controls |
+| Live integration | Phone observations | USB BLE advertisements and complete AP beacons/probe responses feed the existing matcher; other management frames stay in the raw archive |
+| Installation | `app.fieldwatch` | `app.fieldwatch.ng`, displayed as Fieldwatch-NG; installs beside the original app |
+| Validation | Existing Android tests/build | Additional USB framing, parser, archive, bootloader and installer tests; C3 firmware build and bundle checks in CI; Android lint error fixes |
+
+**Limits:** the initial receiver supports native USB ESP32-C3 boards with 4 MB flash
+and a chip revision compatible with the bundled firmware (currently 0.3–1.99).
+Wi-Fi and BLE capture run separately. It cannot receive 5/6 GHz Wi-Fi, Bluetooth
+Classic, BLE extended advertising, or angle-of-arrival data. No additional detection
+signatures are enabled by this extension. Firmware installation replaces the C3's
+application and resets its NVS/settings; phone settings and captures are preserved.
+Raw captures retain identifiers even when the ordinary app Privacy mode is on.
+
+**Validation status:** the implementation is covered by host tests and build checks;
+physical phone/OTG/C3 installation and capture tests are still pending. Multi-receiver
+hotspot sharing and RSSI source-area estimation are documented ideas, not implemented
+features. See the [setup guide and hardware checklist](docs/USB_RECEIVER.md).
+
+Report fork-specific issues in [this fork](https://github.com/jaschadub/Fieldwatch/issues).
+
+The prebuilt APK and PDF linked below are upstream releases; they do **not** contain
+the USB extension. Build this fork or use its CI APK artifact. The original author's
+project description and notices follow.
+
+## Upstream Fieldwatch
 
 I built Fieldwatch as a personal tool to look at what Wi-Fi access points and Bluetooth LE ads my phone was able to pick up, so that I could better understand what devices were being used around me. It’s passive, it only listens, there’s no dongle, no account, and no backend server. I wanted something that would work offline in the field.
 

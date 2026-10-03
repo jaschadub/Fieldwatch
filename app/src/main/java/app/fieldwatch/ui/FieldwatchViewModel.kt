@@ -1,5 +1,7 @@
 package app.fieldwatch.ui
 
+import app.fieldwatch.radio.usb.CaptureProtocol
+import app.fieldwatch.radio.ScanService
 import android.app.Application
 import android.content.ClipData
 import android.content.Intent
@@ -144,6 +146,51 @@ data class FieldwatchUi(
 
 class FieldwatchViewModel(application: Application) : AndroidViewModel(application) {
     private val app = application as FieldwatchApp
+    val usbCaptureState = app.usbCapture.state
+    fun usbReceivers() = app.usbCapture.receivers()
+    fun usbCaptureFiles() = app.usbCapture.archive.files()
+
+    fun startUsbCapture(device: Int, mode: CaptureProtocol.Mode, channel: Int, label: String, gps: Boolean) {
+        if (!app.devices.stats.value.scanning) return
+        app.startService(Intent(app, ScanService::class.java)
+            .setAction(ScanService.ACTION_USB_START)
+            .putExtra("device", device).putExtra("mode", mode.name).putExtra("channel", channel)
+            .putExtra("label", label).putExtra("gps", gps))
+    }
+    fun stopUsbCapture() = app.usbCapture.stopCapture()
+    fun installUsbFirmware(id: Int, manualBoot: Boolean) = app.usbCapture.install(id, manualBoot)
+
+    fun exportUsbCapture(name: String, destination: Uri? = null) {
+        viewModelScope.launch {
+            runCatching {
+                check(!app.usbCapture.state.value.active) { "Stop USB capture before exporting" }
+                val file = app.usbCapture.archive.files().firstOrNull { it.name == name }
+                    ?: error("Capture file not found")
+                if (destination != null) {
+                    withContext(Dispatchers.IO) {
+                        app.contentResolver.openOutputStream(destination)?.use { out ->
+                            file.inputStream().use { it.copyTo(out) }
+                        } ?: error("Could not open export destination")
+                    }
+                    _export.value = ExportUi(message = "USB capture saved", cleared = true)
+                } else {
+                    val uri = FileProvider.getUriForFile(app, "${app.packageName}.files", file)
+                    val share = Intent(Intent.ACTION_SEND).apply {
+                        type = "application/x-ndjson"
+                        clipData = ClipData.newRawUri("USB capture", uri)
+                        putExtra(Intent.EXTRA_STREAM, uri)
+                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    }
+                    _export.value = ExportUi(share = share, shareTitle = "USB research capture")
+                }
+            }.onFailure { _export.value = ExportUi(error = it.message, errorTitle = "USB capture export") }
+        }
+    }
+
+    fun deleteUsbCapture(name: String) {
+        if (app.usbCapture.state.value.active) return
+        app.usbCapture.archive.files().firstOrNull { it.name == name }?.delete()
+    }
     private val filters = FilterEngine()
     private val signatures = SignatureEngine()
     private val selectedKey = MutableStateFlow<String?>(null)

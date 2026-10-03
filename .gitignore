@@ -8,6 +8,9 @@ app/build/
 *.aab
 *.ap_
 local.properties
+firmware/**/sdkconfig
+firmware/**/sdkconfig.old
+firmware/**/managed_components/
 *.jks
 *.keystore
 

@@ -1,6 +1,34 @@
 # What's new
 
-Newest first. This is Fieldwatch (`app.fieldwatch`). Each build below is what Settings shows as the version.
+## Fieldwatch-NG 1.1.17-ng-usb.2 — unreleased
+
+- Install or update the C3 receiver directly from the Android app over USB OTG,
+  including first-time installation using the built-in ROM bootloader. Bundled
+  firmware works offline; confirmation explains that the C3 firmware/settings are replaced.
+- Validate bundled SHA-256 hashes, C3 identity, security state and 4 MB flash before
+  erasing. Verify each written region using the ROM's MD5 command before rebooting.
+- Foreground install notification and bounded wake lock, progress, disconnect/error
+  recovery instructions, and optional manual BOOT/RESET entry. Capture and flashing
+  cannot use the USB interface concurrently. Hardware tests remain pending.
+- Document the fork's differences from the upstream 1.1.17/catalog-90 base.
+
+## Fieldwatch-NG 1.1.17-ng-usb.1
+
+- Optional native USB ESP32-C3 receiver, with explicit start/stop, permission handling,
+  disconnect recovery, firmware handshake and visible loss/error counters.
+- Passive 2.4 GHz Wi-Fi management capture (hop channels 1–11 or hold one channel),
+  or passive legacy BLE advertisement capture. Matching receiver firmware is under
+  `firmware/esp32c3-usb/`.
+- Separate bounded raw JSONL archives, session labels, optional observer GPS,
+  share/save/delete controls. Existing ordinary log exports remain unchanged.
+- USB BLE and AP advertisements enter the existing live matcher; other management
+  frames remain available in raw captures. No new detection signatures are enabled.
+- Separate `app.fieldwatch.ng` package and Fieldwatch-NG launcher name preserve the
+  upstream installation. See [setup and hardware checks](docs/USB_RECEIVER.md).
+- Handle revoked Bluetooth/location permissions, annotate the existing Android 11
+  IE API guard, and refresh decoded device fields when the signature catalog changes.
+
+The entries below are upstream Fieldwatch (`app.fieldwatch`) history.
 
 Fieldwatch continues the Spectre 1.2.14 field build under a new name, application id, and the MIT License. It does not replace Spectre on a phone.
 

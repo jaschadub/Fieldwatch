@@ -6,6 +6,29 @@ on:
   pull_request:
 
 jobs:
+  receiver:
+    name: ESP32-C3 USB receiver
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test receiver commands
+        run: |
+          c++ -std=c++17 -Wall -Wextra -Werror firmware/esp32c3-usb/tests/commands_test.cpp -o "$RUNNER_TEMP/receiver-commands"
+          "$RUNNER_TEMP/receiver-commands"
+      - name: Build receiver firmware
+        run: |
+          docker run --rm --network none \
+            -v "$PWD/firmware/esp32c3-usb:/project" -w /project \
+            espressif/idf:v6.0.2 idf.py -D IDF_TARGET=esp32c3 build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fieldwatch-ng-esp32c3-receiver
+          path: |
+            firmware/esp32c3-usb/build/bootloader/bootloader.bin
+            firmware/esp32c3-usb/build/partition_table/partition-table.bin
+            firmware/esp32c3-usb/build/fieldwatch_usb_receiver.bin
+            firmware/esp32c3-usb/build/flash_args
+          if-no-files-found: error
   test:
     name: Unit tests
     runs-on: ubuntu-latest
@@ -29,8 +52,11 @@ jobs:
           yes | "$SM" --licenses >/dev/null || true
           "$SM" --install "platforms;android-35" "build-tools;35.0.0"
 
+      - name: Verify bundled receiver firmware
+        run: python3 scripts/package_receiver.py --check
+
       - name: Unit tests
-        run: ./gradlew testDebugUnitTest --stacktrace
+        run: ./gradlew testDebugUnitTest lintDebug --stacktrace
 
       - name: Upload test report
         if: always()

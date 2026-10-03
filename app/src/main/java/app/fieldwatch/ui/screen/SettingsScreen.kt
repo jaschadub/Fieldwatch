@@ -114,6 +114,7 @@ fun SettingsScreen(
                 .padding(horizontal = 12.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            UsbCaptureCard(vm, state.scanning)
             SectionCard("Appearance") {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Night mode", Modifier.weight(1f))

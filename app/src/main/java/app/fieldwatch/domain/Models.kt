@@ -833,6 +833,8 @@ data class Sighting(
     ): Double = heardRssi(sort, windowMs, now)
 }
 
+enum class ObservationSource { PHONE, USB_RECEIVER }
+
 data class Observation(
     val kind: RadioKind,
     val mac: String,
@@ -852,6 +854,7 @@ data class Observation(
     val fresh: Boolean = true,
     val vendorIeOuis: List<String> = emptyList(),
     val facts: RadioFacts = RadioFacts.Empty,
+    val source: ObservationSource = ObservationSource.PHONE,
 )
 
 data class ScanStats(

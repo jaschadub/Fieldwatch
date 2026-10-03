@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths>
+    <files-path name="usb-captures" path="usb-captures/" />
     <files-path name="logs" path="logs/" />
     <cache-path name="debrief" path="debrief/" />
     <cache-path name="export" path="export/" />

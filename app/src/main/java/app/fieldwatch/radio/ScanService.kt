@@ -1,5 +1,6 @@
 package app.fieldwatch.radio
 
+import app.fieldwatch.radio.usb.CaptureProtocol
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -15,6 +16,7 @@ import app.fieldwatch.MainActivity
 import app.fieldwatch.R
 import app.fieldwatch.FieldwatchApp
 import app.fieldwatch.domain.Observation
+import app.fieldwatch.domain.ObservationSource
 import app.fieldwatch.domain.RadioKind
 import app.fieldwatch.domain.ScanIntensity
 import app.fieldwatch.domain.detectionPolicy
@@ -160,7 +162,8 @@ class ScanService : LifecycleService() {
                     }
                     if (toLog.isNotEmpty()) app.devices.bumpLogs(app.logs.lineCount)
                 }
-                if (tagged.any { it.kind == RadioKind.WIFI && it.fresh }) {
+                if (tagged.any { it.kind == RadioKind.WIFI && it.fresh &&
+                        it.source == ObservationSource.PHONE }) {
                     wifiBatchPending = true
                 }
                 schedulePublish()
@@ -296,6 +299,18 @@ class ScanService : LifecycleService() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         super.onStartCommand(intent, flags, startId)
+        val app = application as FieldwatchApp
+        if (intent?.action == ACTION_USB_START) {
+            val mode = intent.getStringExtra("mode")?.let {
+                runCatching { CaptureProtocol.Mode.valueOf(it) }.getOrNull()
+            }
+            val channel = intent.getIntExtra("channel", 0)
+            if (mode != null && channel in 0..11) {
+                app.usbCapture.start(intent.getIntExtra("device", -1), mode, channel,
+                    intent.getStringExtra("label").orEmpty(), intent.getBooleanExtra("gps", false), ::offer)
+            }
+        }
+        if (intent?.action == ACTION_USB_STOP) app.usbCapture.stopCapture()
         if (intent?.action == ACTION_STOP) {
             stopScanning()
             return START_NOT_STICKY
@@ -309,6 +324,7 @@ class ScanService : LifecycleService() {
     }
 
     override fun onDestroy() {
+        (application as FieldwatchApp).usbCapture.stopCapture("Fieldwatch scanning stopped")
         loop?.cancel()
         pump?.cancel()
         bleStartJob?.cancel()
@@ -355,6 +371,8 @@ class ScanService : LifecycleService() {
         private const val TAG = "FieldwatchScan"
         const val CHANNEL = "fieldwatch_scan"
         const val ACTION_STOP = "app.fieldwatch.STOP_SCAN"
+        const val ACTION_USB_START = "app.fieldwatch.USB_START"
+        const val ACTION_USB_STOP = "app.fieldwatch.USB_STOP"
         private const val NOTIF_ID = 42
         private const val PUBLISH_MS = 200L
         private const val BLE_START_STAGGER_MS = 500L

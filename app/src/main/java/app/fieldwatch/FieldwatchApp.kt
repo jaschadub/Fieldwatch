@@ -32,6 +32,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 
 class FieldwatchApp : Application() {
+    val usbCapture by lazy { app.fieldwatch.radio.usb.UsbCaptureController(this) }
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     lateinit var config: ConfigStore
         private set
@@ -217,16 +218,18 @@ class FieldwatchApp : Application() {
         val lm = getSystemService(LOCATION_SERVICE) as LocationManager
         seedLastKnown(lm)
         val looper = Looper.getMainLooper()
-        runCatching {
+        try {
             if (lm.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
                 lm.requestLocationUpdates(LocationManager.GPS_PROVIDER, 2_000L, 8f, gpsListener, looper)
             }
-        }
-        runCatching {
+        } catch (_: SecurityException) { /* Permission can be revoked while scanning. */ }
+        catch (_: IllegalArgumentException) { /* Provider unavailable on this phone. */ }
+        try {
             if (lm.isProviderEnabled(LocationManager.NETWORK_PROVIDER)) {
                 lm.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 4_000L, 15f, gpsListener, looper)
             }
-        }
+        } catch (_: SecurityException) { /* Permission can be revoked while scanning. */ }
+        catch (_: IllegalArgumentException) { /* Provider unavailable on this phone. */ }
         locating = true
     }
 
@@ -249,7 +252,10 @@ class FieldwatchApp : Application() {
     private fun seedLastKnown(lm: LocationManager) {
         val now = System.currentTimeMillis()
         val cands = listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER)
-            .mapNotNull { runCatching { lm.getLastKnownLocation(it) }.getOrNull() }
+            .mapNotNull {
+                try { lm.getLastKnownLocation(it) } catch (_: SecurityException) { null }
+                catch (_: IllegalArgumentException) { null }
+            }
             .filter { now - it.time < 30_000L && (!it.hasAccuracy() || it.accuracy <= 75f) }
         val best = cands.minByOrNull { if (it.hasAccuracy()) it.accuracy else 75f } ?: return
         acceptFix(best)
