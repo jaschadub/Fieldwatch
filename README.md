@@ -8,6 +8,11 @@ controls, including **Install / update receiver firmware**, are under
 **Settings → USB research receiver**. The APK includes the C3 firmware for offline
 installation from an Android phone with USB OTG.
 
+[Download the Fieldwatch-NG APK](https://github.com/jaschadub/Fieldwatch/releases/download/v1.1.17-ng-usb.2/Fieldwatch-NG-1.1.17-ng-usb.2.apk) · [Firmware, checksums, and release notes](https://github.com/jaschadub/Fieldwatch/releases/tag/v1.1.17-ng-usb.2)
+
+This is a development prerelease with a development-signed APK; physical phone/OTG/C3
+validation is still pending. The APK installs beside upstream Fieldwatch.
+
 ## Differences from upstream Fieldwatch
 
 Fieldwatch-NG is based on [OffGridPete/Fieldwatch](https://github.com/OffGridPete/Fieldwatch),
@@ -42,8 +47,8 @@ features. See the [setup guide and hardware checklist](docs/USB_RECEIVER.md).
 Report fork-specific issues in [this fork](https://github.com/jaschadub/Fieldwatch/issues).
 
 The prebuilt APK and PDF linked below are upstream releases; they do **not** contain
-the USB extension. Build this fork or use its CI APK artifact. The original author's
-project description and notices follow.
+the USB extension. For Fieldwatch-NG, use the prerelease download above, build this
+fork, or use its CI APK artifact. The original author's project description and notices follow.
 
 ## Upstream Fieldwatch
 
